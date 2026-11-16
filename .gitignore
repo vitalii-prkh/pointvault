@@ -1,0 +1,18 @@
+# Private / personal material (growth plan, notes) — never commit
+.private/
+
+# Node
+node_modules/
+dist/
+coverage/
+*.log
+
+# Env
+.env
+.env.*
+!.env.example
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/

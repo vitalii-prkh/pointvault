@@ -17,9 +17,7 @@ describe('API (e2e)', () => {
   });
 
   it('/healthz (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/healthz')
-      .expect(200);
+    return request(app.getHttpServer()).get('/healthz').expect(200);
   });
 
   afterEach(async () => {

@@ -1,0 +1,73 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Member {
+  id          String   @id @default(uuid()) @db.Uuid
+  email       String   @unique
+  displayName String   @map("display_name")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  wallet      Wallet?
+
+  @@map("members")
+}
+
+enum WalletKind {
+  MEMBER
+  SYSTEM_ISSUANCE
+  SYSTEM_REDEMPTION
+}
+
+/// One account in the double-entry ledger. Member wallets can never go below zero (CHECK constraint in the
+/// migration). System wallets are the other side of every entry.
+model Wallet {
+  id        String        @id @default(uuid()) @db.Uuid
+  kind      WalletKind    @default(MEMBER)
+  memberId  String?       @unique @map("member_id") @db.Uuid
+  member    Member?       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  balance   Int           @default(0)
+  updatedAt DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  entries   LedgerEntry[]
+
+  @@map("wallets")
+}
+
+enum LedgerEntryType {
+  EARN
+  REDEEM
+}
+
+/// One business operation (earn or redeem). Its entries always sum to zero.
+model LedgerTransaction {
+  id             String          @id @default(uuid()) @db.Uuid
+  type           LedgerEntryType
+  idempotencyKey String?         @unique @map("idempotency_key")
+  /// Why the points moved: the earn reason or the redeemed reward id
+  description    String
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  entries        LedgerEntry[]
+
+  @@map("ledger_transactions")
+}
+
+/// One side of a transaction: a signed amount on one wallet.
+model LedgerEntry {
+  id            String            @id @default(uuid()) @db.Uuid
+  transactionId String            @map("transaction_id") @db.Uuid
+  transaction   LedgerTransaction @relation(fields: [transactionId], references: [id])
+  walletId      String            @map("wallet_id") @db.Uuid
+  wallet        Wallet            @relation(fields: [walletId], references: [id])
+  /// Positive = credit to this wallet, negative = debit
+  amount        Int
+  balanceAfter  Int               @map("balance_after")
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([walletId, createdAt])
+  @@map("ledger_entries")
+}

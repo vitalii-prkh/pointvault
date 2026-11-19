@@ -2,6 +2,7 @@ import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import {
   ApiAcceptedResponse,
   ApiBadRequestResponse,
+  ApiNotFoundResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { ActivityService } from './activity.service.js';
@@ -18,15 +19,16 @@ export class ActivityController {
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiAcceptedResponse({ type: ActivityAcceptedResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
-  checkIn(@Body() dto: CheckInDto): ActivityAcceptedResponseDto {
-    return this.activity.record('check-in', dto);
+  checkIn(@Body() dto: CheckInDto): Promise<ActivityAcceptedResponseDto> {
+    return this.activity.checkIn(dto);
   }
 
   @Post('purchase')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiAcceptedResponse({ type: ActivityAcceptedResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
-  purchase(@Body() dto: PurchaseDto): ActivityAcceptedResponseDto {
-    return this.activity.record('purchase', dto);
+  @ApiNotFoundResponse({ description: 'Member has no wallet' })
+  purchase(@Body() dto: PurchaseDto): Promise<ActivityAcceptedResponseDto> {
+    return this.activity.purchase(dto);
   }
 }

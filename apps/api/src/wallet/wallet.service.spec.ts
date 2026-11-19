@@ -1,52 +1,87 @@
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Prisma } from '../generated/prisma/client.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 import { WalletService } from './wallet.service.js';
-import { LedgerEntryType } from './dto/ledger-entry-type.enum.js';
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
+// The happy paths run against a real database in the e2e tests. These cover the error mapping.
 describe('WalletService', () => {
   let service: WalletService;
   const memberId = '3f2b8a5e-6c1d-4e7a-9b0f-1a2b3c4d5e6f';
+  const prisma = {
+    $transaction: vi.fn(),
+    wallet: { findUnique: vi.fn() },
+    ledgerTransaction: { findUnique: vi.fn() },
+  };
+
+  const prismaError = (code: string) =>
+    new Prisma.PrismaClientKnownRequestError('db error', {
+      code,
+      clientVersion: 'test',
+    });
 
   beforeEach(async () => {
+    vi.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
-      providers: [WalletService],
+      providers: [WalletService, { provide: PrismaService, useValue: prisma }],
     }).compile();
 
-    service = module.get<WalletService>(WalletService);
+    service = module.get(WalletService);
   });
 
-  it('earn() returns an EARN entry for the member', () => {
-    const entry = service.earn({
+  it('redeem() maps a failed balance guard (P2025) to 409 Insufficient balance', async () => {
+    prisma.$transaction.mockRejectedValue(prismaError('P2025'));
+
+    await expect(
+      service.redeem({ memberId, points: 10, rewardId: 'coffee' }),
+    ).rejects.toThrow(new ConflictException('Insufficient balance'));
+  });
+
+  it('earn() rejects an Idempotency-Key that was used for a different request', async () => {
+    prisma.ledgerTransaction.findUnique.mockResolvedValue({
+      type: 'EARN',
+      entries: [{ amount: 999, wallet: { memberId } }],
+    });
+
+    await expect(
+      service.earn({ memberId, points: 100, reason: 'Bonus' }, 'key-1'),
+    ).rejects.toThrow(ConflictException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('earn() returns the original entry for a repeated Idempotency-Key', async () => {
+    const createdAt = new Date('2026-11-18T10:00:00.000Z');
+    prisma.ledgerTransaction.findUnique.mockResolvedValue({
+      type: 'EARN',
+      entries: [
+        {
+          id: 'entry-1',
+          amount: 100,
+          balanceAfter: 100,
+          createdAt,
+          wallet: { memberId },
+        },
+      ],
+    });
+
+    await expect(
+      service.earn({ memberId, points: 100, reason: 'Bonus' }, 'key-1'),
+    ).resolves.toEqual({
+      entryId: 'entry-1',
       memberId,
+      type: 'EARN',
       points: 100,
-      reason: 'Welcome bonus',
+      balanceAfter: 100,
+      createdAt: createdAt.toISOString(),
     });
-
-    expect(entry).toMatchObject({
-      memberId,
-      type: LedgerEntryType.EARN,
-      points: 100,
-    });
-    expect(entry.entryId).toMatch(UUID_RE);
-    expect(Number.isNaN(Date.parse(entry.createdAt))).toBe(false);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('redeem() returns a REDEEM entry for the member', () => {
-    const entry = service.redeem({ memberId, points: 50, rewardId: 'coffee' });
+  it('getBalance() throws 404 when the member has no wallet', async () => {
+    prisma.wallet.findUnique.mockResolvedValue(null);
 
-    expect(entry).toMatchObject({
-      memberId,
-      type: LedgerEntryType.REDEEM,
-      points: 50,
-    });
-  });
-
-  it('getBalance() returns the balance for the member', () => {
-    expect(service.getBalance(memberId)).toMatchObject({
-      memberId,
-      balance: 0,
-    });
+    await expect(service.getBalance(memberId)).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });

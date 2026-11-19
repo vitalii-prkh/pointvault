@@ -2,7 +2,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 export function configureApp(app: INestApplication): void {
-  app.setGlobalPrefix('api', { exclude: ['healthz'] });
+  app.setGlobalPrefix('api', { exclude: ['healthz', 'readyz'] });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

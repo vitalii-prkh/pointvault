@@ -1,0 +1,12 @@
+# Allowlist: start from nothing, add back only what the image build needs.
+*
+!package.json
+!package-lock.json
+!apps/api
+apps/api/node_modules
+apps/api/dist
+apps/api/coverage
+apps/api/src/generated
+apps/api/*.tsbuildinfo
+apps/api/.env
+apps/api/.env.*

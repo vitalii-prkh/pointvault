@@ -114,6 +114,6 @@ Why PostgreSQL for points and MongoDB for events:
 - [x] **Phase 1:** NestJS REST API, validation, Swagger UI, unit and e2e tests
 - [x] **Phase 2:** PostgreSQL (Prisma) ledger, MongoDB (Mongoose) activity events, ADR-001
 - [x] **Phase 3:** Dockerfile, docker-compose, integration tests against the container stack
-- [ ] **Phase 4:** AZ-900 certification
+- [x] **Phase 4:** AZ-900 certification
 - [ ] **Phase 5:** GitHub Actions CI: tests, Docker build, push to registry
 - [ ] **Phase 6:** Deploy to Azure, Application Insights custom metrics

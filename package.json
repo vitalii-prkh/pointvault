@@ -9,8 +9,12 @@
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:e2e": "npm run test:e2e --workspaces --if-present",
-    "db:up": "docker compose up -d --wait",
+    "db:up": "docker compose up -d --wait postgres mongo",
     "db:down": "docker compose down",
-    "db:migrate": "npm run db:migrate -w apps/api"
+    "db:migrate": "npm run db:migrate -w apps/api",
+    "stack:up": "docker compose up -d --build --wait",
+    "stack:down": "docker compose down",
+    "stack:logs": "docker compose logs -f api",
+    "test:stack": "npm run test:stack --workspaces --if-present"
   }
 }

@@ -1,4 +1,5 @@
-# Local databases for development and e2e tests. The API itself joins this file in Phase 3.
+# Local stack. `npm run db:up` starts only the databases (for `npm run dev:api` and the e2e tests);
+# `npm run stack:up` also builds and starts the API container.
 name: pointvault
 
 services:
@@ -30,6 +31,49 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # One-shot job: applies Prisma migrations, then exits. The api waits for it to succeed.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migrate
+    environment:
+      DATABASE_URL: postgresql://pointvault:pointvault@postgres:5432/pointvault
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runtime
+    image: pointvault-api:local
+    environment:
+      DATABASE_URL: postgresql://pointvault:pointvault@postgres:5432/pointvault
+      MONGODB_URI: mongodb://mongo:27017/pointvault
+    ports:
+      - '${API_PORT:-3000}:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # Compose-level check uses /readyz, so `up --wait` returns only when the API can reach both databases.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 5s
+      timeout: 3s
+      start_period: 20s
+      retries: 10
+    restart: unless-stopped
 
 volumes:
   postgres-data:
